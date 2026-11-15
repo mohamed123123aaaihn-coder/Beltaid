@@ -1,0 +1,915 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>BELTAID Fall Monitor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: control strip, status banner, vitals column beside a local map, then the SOS message beside the event log. */
+:root {
+  --bg: #EDF0F5;
+  --surface: #FFFFFF;
+  --surface-2: #F3F5F9;
+  --ink: #0F1726;
+  --muted: #586478;
+  --line: #D6DCE6;
+  --accent: #2757D6;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E1E9FB;
+  --good: #1B8A4B;
+  --warn: #A8620A;
+  --crit: #C42B2B;
+  --good-bg: #E4F4EA;
+  --warn-bg: #FBEFD9;
+  --crit-bg: #FBE6E4;
+  --hr: #0B8F7E;
+  --sys: #3552C9;
+  --dia: #8A5CD0;
+  --map-bg: #E6E9EE;
+  --map-grid: rgba(15, 23, 38, 0.09);
+  --crater: #D6DBE3;
+  --crater-edge: #B7BFCB;
+  --boulder: #A9B2C0;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A0F17; --surface: #111925; --surface-2: #172131; --ink: #E7ECF4; --muted: #8E9BB0; --line: #25303F;
+    --accent: #7AA2FF; --accent-ink: #0A1226; --accent-soft: #1C2A4A;
+    --good: #4CC585; --warn: #E5B04C; --crit: #FF7068;
+    --good-bg: #12301F; --warn-bg: #352A12; --crit-bg: #3A1717;
+    --hr: #3FD0BC; --sys: #8FA8FF; --dia: #C3A0F5;
+    --map-bg: #0E141D; --map-grid: rgba(231, 236, 244, 0.07); --crater: #131B27; --crater-edge: #2A3648; --boulder: #3A475A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0A0F17; --surface: #111925; --surface-2: #172131; --ink: #E7ECF4; --muted: #8E9BB0; --line: #25303F;
+  --accent: #7AA2FF; --accent-ink: #0A1226; --accent-soft: #1C2A4A;
+  --good: #4CC585; --warn: #E5B04C; --crit: #FF7068;
+  --good-bg: #12301F; --warn-bg: #352A12; --crit-bg: #3A1717;
+  --hr: #3FD0BC; --sys: #8FA8FF; --dia: #C3A0F5;
+  --map-bg: #0E141D; --map-grid: rgba(231, 236, 244, 0.07); --crater: #131B27; --crater-edge: #2A3648; --boulder: #3A475A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3, p { margin: 0; }
+button, select, input { font: inherit; color: inherit; }
+.app { max-width: 1240px; margin: 0 auto; display: grid; gap: 14px; }
+
+/* Top bar */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; }
+.brand h1 { font-family: var(--font-display); font-weight: 600; font-size: 22px; letter-spacing: 0.04em; }
+.brand p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.top-r { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tag { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; background: var(--surface); color: var(--muted); white-space: nowrap; }
+.tag b { color: var(--ink); font-weight: 500; }
+.tag.sim { color: var(--warn); border-color: var(--warn); }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.card h3 { font-family: var(--font-display); font-weight: 600; font-size: 15px; letter-spacing: 0.02em; }
+.card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.cap { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+/* Controls */
+.controls { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: flex-end; }
+.ctl { display: grid; gap: 6px; min-width: 0; }
+.lbl { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.seg-opt { position: relative; cursor: pointer; }
+.seg-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg-opt span { display: block; padding: 8px 14px; font-weight: 500; border-right: 1px solid var(--line); }
+.seg-opt:last-child span { border-right: 0; }
+.seg-opt input:checked + span { background: var(--accent); color: var(--accent-ink); }
+.seg-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -3px; }
+select { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-height: 37px; }
+select:focus-visible, .btn:focus-visible, .ev-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; grid-auto-flow: column; }
+.btn { padding: 9px 15px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 500; cursor: pointer; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn[aria-pressed="false"] { color: var(--muted); }
+.controls .note { flex: 1 1 220px; color: var(--muted); font-size: 12.5px; align-self: center; }
+
+/* Status banner */
+.banner { position: relative; overflow: hidden; display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; padding: 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+.banner[data-state="alert"] { background: var(--crit-bg); border-color: var(--crit); }
+.banner[data-state="ended"] { background: var(--warn-bg); border-color: var(--warn); }
+.banner-main { display: flex; gap: 12px; align-items: center; flex: 1 1 300px; min-width: 0; }
+.dot { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--good); }
+.banner[data-state="alert"] .dot { background: var(--crit); }
+.banner[data-state="ended"] .dot { background: var(--warn); }
+@media (prefers-reduced-motion: no-preference) {
+  .banner[data-state="alert"] .dot { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.5); opacity: 0.55; } }
+  .msgbox.flash { animation: flash 1.2s ease-out; }
+  @keyframes flash { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 3px transparent; } }
+}
+.banner h2 { font-family: var(--font-display); font-weight: 600; font-size: 20px; line-height: 1.2; }
+.banner[data-state="alert"] h2 { color: var(--crit); }
+.banner[data-state="ended"] h2 { color: var(--warn); }
+.banner p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.banner[data-state="alert"] p, .banner[data-state="ended"] p { color: var(--ink); }
+.pills { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.pills li { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 10px; display: grid; gap: 1px; min-width: 92px; }
+.pills span { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.pills b { font-family: var(--font-mono); font-weight: 500; font-size: 13px; font-variant-numeric: tabular-nums; }
+.accel { flex: 0 1 270px; min-width: 200px; }
+.accel .cap { margin-top: 2px; font-size: 11px; }
+.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: transparent; }
+.bar span { display: block; height: 100%; width: 0; background: var(--crit); }
+
+/* Grid */
+.grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
+.c5 { grid-column: span 5; }
+.c7 { grid-column: span 7; }
+.stack { display: grid; gap: 14px; align-content: start; }
+canvas.cv { display: block; width: 100%; }
+.cv.ecg { height: 112px; }
+.cv.hrt { height: 96px; margin-top: 6px; }
+.cv.bpt { height: 150px; margin-top: 6px; }
+.cv.acc { height: 64px; }
+.cv.map { aspect-ratio: 4 / 3; height: auto; border-radius: 8px; border: 1px solid var(--line); }
+
+.vh { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.vnum { display: flex; align-items: baseline; gap: 8px; margin: 4px 0 8px; }
+.num { font-family: var(--font-display); font-weight: 600; font-size: 46px; line-height: 1; font-variant-numeric: tabular-nums; }
+.unit { color: var(--muted); font-size: 13px; }
+.chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 500; border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 3px 10px 3px 8px; white-space: nowrap; }
+.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.chip[data-s="ok"]::before { background: var(--good); }
+.chip[data-s="warn"]::before { background: var(--warn); }
+.chip[data-s="crit"]::before { background: var(--crit); }
+.chip[data-s="crit"] { border-color: var(--crit); }
+
+dl.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; margin: 12px 0 0; }
+dl.facts div { min-width: 0; }
+dl.facts dt { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+dl.facts dd { margin: 2px 0 0; font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* SOS message */
+.msgbox { font-family: var(--font-mono); font-size: 13px; line-height: 1.75; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-wrap: anywhere; }
+.msgbox[data-mode="preview"] { border-style: dashed; color: var(--muted); }
+.msgbox i { font-style: normal; color: var(--muted); }
+.msgbox .sep { color: var(--muted); }
+.msgbox .f.head { color: var(--crit); font-weight: 500; }
+.msgbox[data-mode="preview"] .f.head { color: var(--muted); }
+.msgbox .f.vit, .msgbox .f.loc { background: var(--accent-soft); border-radius: 4px; padding: 0 4px; color: var(--ink); }
+.msgbox[data-mode="preview"] .f.vit, .msgbox[data-mode="preview"] .f.loc { color: var(--muted); }
+.meta { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+.dec-h { margin-top: 14px; }
+dl.decoded { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 6px; }
+dl.decoded .wide { grid-column: 1 / -1; }
+dl.decoded dd { font-size: 14px; }
+
+/* Event log */
+ol.log { list-style: none; margin: 0; padding: 0; max-height: 290px; overflow: auto; display: grid; gap: 2px; align-content: start; }
+.ev { display: grid; grid-template-columns: 52px 62px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 5px 4px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.ev-t { font-family: var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ev-k { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em; color: var(--muted); }
+.ev[data-k="sos"] .ev-k { color: var(--crit); font-weight: 500; }
+.ev[data-k="gps"] .ev-k { color: var(--accent); }
+.ev[data-k="sensor"] .ev-k { color: var(--warn); }
+.ev-x { min-width: 0; overflow-wrap: anywhere; }
+.ev-btn { text-align: left; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.ev-btn.sel { text-decoration-color: var(--accent); font-weight: 500; }
+
+.foot { color: var(--muted); font-size: 12.5px; max-width: 90ch; }
+
+@media (max-width: 900px) {
+  .c5, .c7 { grid-column: 1 / -1; }
+  .accel { flex: 1 1 100%; }
+  .num { font-size: 40px; }
+}
+@media (max-width: 480px) {
+  .actions { grid-auto-flow: row; width: 100%; }
+  .actions .btn { width: 100%; }
+  .ctl { width: 100%; }
+  .seg { display: flex; }
+  .seg-opt { flex: 1; }
+  .seg-opt span { text-align: center; padding-inline: 6px; }
+  .ev { grid-template-columns: 48px 54px minmax(0, 1fr); gap: 6px; }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>BELTAID</h1>
+      <p>Astronaut fall alert · Moon surface suit monitor</p>
+    </div>
+    <div class="top-r">
+      <span class="tag sim">Simulation</span>
+      <span class="tag">Gravity <b>0.16 g</b></span>
+      <span class="tag">Mission time <b id="met">00:00:00</b></span>
+    </div>
+  </header>
+
+  <section class="card controls" aria-label="Simulation controls">
+    <div class="ctl">
+      <span class="lbl" id="sevLbl">Fall severity</span>
+      <div class="seg" role="radiogroup" aria-labelledby="sevLbl">
+        <label class="seg-opt"><input type="radio" name="sev" value="minor"><span>Minor</span></label>
+        <label class="seg-opt"><input type="radio" name="sev" value="moderate" checked><span>Moderate</span></label>
+        <label class="seg-opt"><input type="radio" name="sev" value="severe"><span>Severe</span></label>
+      </div>
+    </div>
+    <div class="ctl">
+      <label class="lbl" for="gpsSel">GPS fix</label>
+      <select id="gpsSel">
+        <option value="6" selected>Arrives after 6 s</option>
+        <option value="12">Arrives after 12 s</option>
+        <option value="none">No fix (fallback only)</option>
+      </select>
+    </div>
+    <div class="ctl actions">
+      <button id="btnFall" class="btn primary" type="button">Simulate fall</button>
+      <button id="btnHop" class="btn" type="button">Harmless hop</button>
+      <button id="btnReset" class="btn" type="button">Reset</button>
+      <button id="btnSound" class="btn" type="button" aria-pressed="true">Sound on</button>
+    </div>
+    <p class="note">Severity sets the free-fall time, impact force and how heart rate and blood pressure react. Sound starts after your first click: a siren for the 8 s suit buzzer and a chirp for each SOS sent.</p>
+  </section>
+
+  <section id="banner" class="banner" data-state="nominal" aria-label="Alert status">
+    <div class="banner-main" role="status">
+      <span class="dot" aria-hidden="true"></span>
+      <div>
+        <h2 id="bTitle">Nominal</h2>
+        <p id="bSub">Watching suit motion. No fall detected.</p>
+      </div>
+    </div>
+    <ul class="pills">
+      <li><span>Detector</span><b id="pDet">armed</b></li>
+      <li><span>Buzzer</span><b id="pBuz">off</b></li>
+      <li><span>GPS</span><b id="pGps">off</b></li>
+      <li><span>Next SOS</span><b id="pNext">-</b></li>
+    </ul>
+    <div class="accel">
+      <canvas id="cvAcc" class="cv acc" role="img" aria-label="Acceleration magnitude of the last 6 seconds"></canvas>
+      <p class="cap" id="accCap">Total acceleration, last 6 s. Dashed lines: free fall 0.08 g, impact 0.40 g.</p>
+    </div>
+    <div class="bar" aria-hidden="true"><span id="bar"></span></div>
+  </section>
+
+  <main class="grid">
+    <div class="c5 stack">
+      <section class="card" aria-labelledby="hrH">
+        <div class="vh"><h3 id="hrH">Heart rate</h3><span class="chip" id="hrChip" data-s="ok">Normal</span></div>
+        <div class="vnum"><span class="num" id="hrVal">--</span><span class="unit">bpm</span></div>
+        <canvas id="cvEcg" class="cv ecg" role="img" aria-label="ECG trace of the last 6 seconds"></canvas>
+        <canvas id="cvHr" class="cv hrt" role="img" aria-label="Heart rate over the last 90 seconds"></canvas>
+        <p class="cap">ECG, last 6 s. Heart rate, last 90 s.</p>
+      </section>
+      <section class="card" aria-labelledby="bpH">
+        <div class="vh"><h3 id="bpH">Blood pressure</h3><span class="chip" id="bpChip" data-s="ok">Normal</span></div>
+        <div class="vnum"><span class="num" id="bpVal">--/--</span><span class="unit">mmHg</span></div>
+        <canvas id="cvBp" class="cv bpt" role="img" aria-label="Systolic and diastolic pressure over the last 90 seconds"></canvas>
+        <p class="cap">Systolic and diastolic, last 90 s. Dashed line: systolic 90, the low limit.</p>
+      </section>
+    </div>
+
+    <section class="card c7" aria-labelledby="mapH">
+      <div class="card-h"><h3 id="mapH">Location</h3><span class="chip" id="locChip" data-s="ok">Moving on EVA</span></div>
+      <canvas id="cvMap" class="cv map" role="img" aria-label="Top-down map of the local area showing the astronaut, the habitat and the walking trail"></canvas>
+      <dl class="facts">
+        <div><dt>Latitude</dt><dd id="fLat">-</dd></div>
+        <div><dt>Longitude</dt><dd id="fLon">-</dd></div>
+        <div><dt>Local X / Y</dt><dd id="fXY">-</dd></div>
+        <div><dt>From habitat</dt><dd id="fDist">-</dd></div>
+        <div><dt>Reported in SOS as</dt><dd id="fRep">Nothing sent yet</dd></div>
+      </dl>
+    </section>
+
+    <section class="card c7" aria-labelledby="msgH">
+      <div class="card-h">
+        <h3 id="msgH">SOS message</h3>
+        <button id="btnCopy" class="btn" type="button">Copy</button>
+      </div>
+      <div id="msgBox" class="msgbox" data-mode="preview"></div>
+      <p class="meta" id="msgMeta"></p>
+      <p class="lbl dec-h">Read at the control centre</p>
+      <dl class="facts decoded" aria-label="Fields read from the message">
+        <div><dt>Heart rate</dt><dd id="dHr">-</dd></div>
+        <div><dt>Blood pressure</dt><dd id="dBp">-</dd></div>
+        <div class="wide"><dt>Position</dt><dd id="dLoc">-</dd></div>
+      </dl>
+      <p class="cap">Sent over the telemetry link (LoRa, RF or GSM). The same alert number is kept on every repeat so the control centre can ignore duplicates.</p>
+    </section>
+
+    <section class="card c5" aria-labelledby="logH">
+      <div class="card-h"><h3 id="logH">Event log</h3></div>
+      <ol id="log" class="log"></ol>
+      <p class="cap">Select an SOS entry to see the message that was sent.</p>
+    </section>
+  </main>
+
+  <p class="foot">All readings are simulated. Fall detection uses the same thresholds and timing as BELTAID.ino for the Moon (free fall below 0.08 g for at least 60 ms, then an impact above 0.40 g within 0.8 s). Heart rate and blood pressure are not in the firmware message yet: they need sensors in the suit and two extra fields in the alert.</p>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const TAU = Math.PI * 2;
+const REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+/* ---------- Constants mirrored from BELTAID.ino (Moon build) ---------- */
+const G = 0.16;
+const FF_THR = 0.5 * G, IMP_THR = 2.5 * G;
+const FF_MIN = 0.06, FF_MAX = 5, IMP_WIN = 0.8;
+const PEAK_WIN = 0.15, ALARM_ON = 8, SOS_REPEAT = 5, TOTAL = 30;
+const FALLBACK = 'Local Beacon Coordinates: X=45.12, Y=-12.88';
+const FALLBACK_XY = { x: 45.12, y: -12.88 };
+const ASTRO = { name: 'Astronaut-1', id: 'AST-001', suit: 'SUIT-01', blood: 'O+' };
+const MAX_BYTES = 255;
+
+/* ---------- Simulation constants ---------- */
+const H = 0.004;                       // fixed 250 Hz step
+const ECG_N = 250 * 6, ACC_N = 250 * 6;
+const BASE = { lat: -85.2833, lon: 31.25 };
+const M_PER_DEG = 2 * Math.PI * 1737400 / 360;
+const COS0 = Math.cos(BASE.lat * Math.PI / 180);
+const latOf = y => BASE.lat + y / M_PER_DEG;
+const lonOf = x => BASE.lon + x / (M_PER_DEG * COS0);
+const PATH = [[-62, -22], [-24, 28], [28, 36], [64, 8], [46, -30], [2, -46], [-44, -38]];
+const SPEED = 2.4;
+const PROFILES = {
+  minor:    { ff: 220, peak: 0.62, hrPeak: 126, hrSet: 102, sysPeak: 138, sysSet: 126, diaPeak: 88, diaSet: 80, tau: 14 },
+  moderate: { ff: 400, peak: 1.12, hrPeak: 146, hrSet: 126, sysPeak: 156, sysSet: 108, diaPeak: 96, diaSet: 68, tau: 12 },
+  severe:   { ff: 650, peak: 2.35, hrPeak: 160, hrSet: 146, sysPeak: 150, sysSet: 78,  diaPeak: 94, diaSet: 44, tau: 8 }
+};
+const KIND = { sos: 'SOS', sensor: 'SENSOR', gps: 'GPS', buzzer: 'ALARM', system: 'SYSTEM' };
+const MONO = "'IBM Plex Mono', ui-monospace, monospace";
+
+const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); };
+const fmtT = s => { s = Math.floor(s); return 'T+' + String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+const fmtMET = s => { s = Math.floor(s); const p = n => String(n).padStart(2, '0'); return p(Math.floor(s / 3600)) + ':' + p(Math.floor(s / 60) % 60) + ':' + p(s % 60); };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ---------- State ---------- */
+let ticks, T, W, trail, V, hist, fallMarks, script, det, E, alertCount, events, evId, selMsg, logDirty, ecg, ecgHead, acc, accHead, lastSec, craters, boulders;
+
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function makeTerrain() {
+  const r = mulberry32(11);
+  craters = []; boulders = [];
+  while (craters.length < 13) {
+    const c = { x: (r() - 0.5) * 190, y: (r() - 0.5) * 140, r: 4 + r() * 11 };
+    if (Math.hypot(c.x, c.y) < c.r + 14) continue;
+    craters.push(c);
+  }
+  for (let i = 0; i < 70; i++) boulders.push({ x: (r() - 0.5) * 196, y: (r() - 0.5) * 146, s: 0.6 + r() * 1.2 });
+}
+
+function init() {
+  ticks = 0; T = 0; lastSec = -1;
+  W = { x: PATH[0][0], y: PATH[0][1], i: 0, s: 0, hd: 0, moving: true };
+  trail = [[W.x, W.y]];
+  V = { hr: 90, sys: 122, dia: 78, shownHr: 90, shownSys: 122, shownDia: 78, rr: 0.66, phase: 0, profile: null, tf: null };
+  hist = []; fallMarks = []; script = null;
+  det = { state: 'idle', start: 0, end: 0, lockout: false, lastFF: 0 };
+  E = { active: false, finished: false, start: 0, id: 0, ff: 0, peak: 0, sosSent: false, lastSos: 0, haveFix: false, buzzer: false, gps: false, fixAt: null, reported: null, snap: null };
+  alertCount = 0; events = []; evId = 0; selMsg = null; logDirty = true;
+  ecg = new Float32Array(ECG_N); ecgHead = 0; acc = new Float32Array(ACC_N).fill(G); accHead = 0;
+  logEv('system', 'BELTAID initialised. MPU6050 ready, sampling acceleration.');
+  logEv('system', 'Armed: free fall below 0.08 g for 60 ms or more, then an impact above 0.40 g within 0.8 s.');
+  for (let i = 0; i < 6000; i++) tick();   // 24 s of history so every chart is already filled
+  refreshButtons();
+}
+
+/* ---------- Event log ---------- */
+function logEv(kind, text, extra) {
+  const e = Object.assign({ id: ++evId, t: T, kind, text }, extra || {});
+  events.push(e); if (events.length > 80) events.shift();
+  logDirty = true; return e;
+}
+
+/* ---------- Detector (same logic as BELTAID.ino) ---------- */
+function detect(a, t) {
+  let res = null;
+  if (a >= FF_THR) det.lockout = false;
+  if (det.state === 'freefall') {
+    if (a >= FF_THR) {
+      const d = t - det.start;
+      if (d >= FF_MIN && d <= FF_MAX) { det.state = 'await'; det.end = t; } else det.state = 'idle';
+    } else if (t - det.start > FF_MAX) { det.state = 'idle'; det.lockout = true; }
+  }
+  if (det.state === 'await') {
+    if (a > IMP_THR) { det.lastFF = det.end - det.start; det.state = 'idle'; return 'trigger'; }
+    if (t - det.end > IMP_WIN) { det.lastFF = det.end - det.start; det.state = 'idle'; res = 'ignored'; }
+  }
+  if (det.state === 'idle' && !det.lockout && a < FF_THR) { det.state = 'freefall'; det.start = t; }
+  return res;
+}
+
+function accelAt(t) {
+  let a = G + gauss() * 0.006;
+  if (script) {
+    const u = t - script.t0;
+    if (u >= script.ff + 0.6) { script = null; refreshButtons(); }
+    else if (u >= script.ff) { const w = u - script.ff; a = G + (script.peak - G) * Math.exp(-w / 0.035) * (0.55 + 0.45 * Math.cos(w * 55)) + gauss() * 0.008; }
+    else if (u >= 0) a = 0.012 + Math.abs(gauss()) * 0.006;
+  }
+  return Math.max(0, a);
+}
+
+/* ---------- Emergency protocol (same timing as BELTAID.ino) ---------- */
+function onTrigger(t, a) {
+  if (E.active) return;
+  E = { active: true, finished: false, start: t, id: ++alertCount, ff: det.lastFF * 1000, peak: a, sosSent: false, lastSos: 0, haveFix: false,
+        buzzer: true, gps: true, fixAt: fixDelay() == null ? null : t + fixDelay(), reported: null, snap: null };
+  logEv('sensor', 'Free fall ' + Math.round(E.ff) + ' ms, then a ' + a.toFixed(2) + ' g impact. Fall confirmed.');
+  logEv('buzzer', 'Buzzer on.');
+  logEv('gps', 'GPS powered on, waiting for a fix.');
+  refreshButtons();
+}
+
+function emergencyTick(t, a) {
+  if (!E.active) return;
+  const el = t - E.start;
+  if (el < PEAK_WIN && a > E.peak) E.peak = a;
+  if (!E.snap && el >= 1.5) E.snap = orderedAcc();   // keep the fall on screen while the alert runs
+  if (E.buzzer && el >= ALARM_ON) { E.buzzer = false; logEv('buzzer', 'Buzzer off after 8 s.'); }
+  let newFix = false;
+  if (E.fixAt != null && !E.haveFix && t >= E.fixAt) { E.haveFix = true; newFix = true; logEv('gps', 'GPS fix acquired ' + Math.round(el) + ' s after the fall.'); }
+  if (!E.sosSent) {
+    if (el >= PEAK_WIN) { sendSOS(t); E.sosSent = true; E.lastSos = t; }
+  } else if (newFix || t - E.lastSos >= SOS_REPEAT) { sendSOS(t); E.lastSos = t; }
+  if (el >= TOTAL) {
+    E.active = false; E.finished = true; E.buzzer = false; E.gps = false;
+    if (!E.haveFix) logEv('gps', 'No GPS fix. The fallback beacon position was used for every SOS.');
+    logEv('system', 'Emergency protocol finished. GPS powered down.');
+    refreshButtons();
+  }
+}
+
+/* ---------- Message ---------- */
+function locString() {
+  return E.haveFix ? 'Lat: ' + latOf(W.y).toFixed(6) + ', Lon: ' + lonOf(W.x).toFixed(6) : FALLBACK;
+}
+function buildParts(o) {
+  return [
+    ['', 'SOS! FALL DETECTED', 'head'],
+    ['Astronaut:', ASTRO.name + ' (ID ' + ASTRO.id + ')', ''],
+    ['Loc:', o.loc + ' [' + o.src + ']', 'loc'],
+    ['Free-fall:', o.ff + ' ms', ''],
+    ['Peak:', o.peak + ' g', ''],
+    ['HR:', o.hr + ' bpm', 'vit'],
+    ['BP:', o.sys + '/' + o.dia + ' mmHg', 'vit'],
+    ['Blood:', ASTRO.blood, ''],
+    ['Suit:', ASTRO.suit, ''],
+    ['Uptime:', Math.floor(o.t) + ' s', ''],
+    ['Alert', '#' + o.id, '']
+  ];
+}
+const rawOf = parts => parts.map(p => p[0] ? p[0] + ' ' + p[1] : p[1]).join(' | ');
+
+function sendSOS(t) {
+  const src = E.haveFix ? 'GPS' : 'fallback';
+  const parts = buildParts({ loc: locString(), src, ff: Math.round(E.ff), peak: E.peak.toFixed(2), hr: V.shownHr, sys: V.shownSys, dia: V.shownDia, t, id: E.id });
+  const raw = rawOf(parts);
+  E.reported = src;
+  const e = logEv('sos', 'SOS #' + E.id + ' sent (' + (src === 'GPS' ? 'GPS position' : 'fallback position') + '). HR ' + V.shownHr + ', BP ' + V.shownSys + '/' + V.shownDia + '.',
+    { parts, raw, bytes: raw.length, src, alert: E.id });
+  selMsg = e.id; msgCache = '';
+  sosBlip();
+  const box = $('msgBox'); box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash');
+}
+
+/* ---------- Walker, vitals, history ---------- */
+function walkerTick() {
+  if (!W.moving) return;
+  let d = SPEED * H;
+  while (d > 0) {
+    const a = PATH[W.i], b = PATH[(W.i + 1) % PATH.length];
+    const left = Math.hypot(b[0] - a[0], b[1] - a[1]) - W.s;
+    if (d < left) { W.s += d; d = 0; } else { d -= left; W.i = (W.i + 1) % PATH.length; W.s = 0; }
+  }
+  const a = PATH[W.i], b = PATH[(W.i + 1) % PATH.length], f = W.s / Math.hypot(b[0] - a[0], b[1] - a[1]);
+  W.x = a[0] + (b[0] - a[0]) * f; W.y = a[1] + (b[1] - a[1]) * f; W.hd = Math.atan2(b[0] - a[0], b[1] - a[1]);
+}
+
+function vitalsTick(t) {
+  let tH = (W.moving ? 90 : 84) + 4 * Math.sin(t / 9);
+  let tS = 122 + 3 * Math.sin(t / 13), tD = 78 + 2 * Math.sin(t / 11);
+  if (V.profile && t >= V.tf) {
+    const p = V.profile, e = Math.exp(-(t - V.tf) / p.tau);
+    tH = p.hrSet + (p.hrPeak - p.hrSet) * e;
+    tS = p.sysSet + (p.sysPeak - p.sysSet) * e;
+    tD = p.diaSet + (p.diaPeak - p.diaSet) * e;
+  }
+  V.hr += (tH - V.hr) * (1 - Math.exp(-H / 1.0));
+  V.sys += (tS - V.sys) * (1 - Math.exp(-H / 2.5));
+  V.dia += (tD - V.dia) * (1 - Math.exp(-H / 2.5));
+  V.phase += H / V.rr;
+  if (V.phase >= 1) { V.phase -= 1; V.rr = 60 / Math.max(35, V.hr) * (1 + 0.03 * gauss()); V.shownHr = Math.round(V.hr + gauss() * 1.2); }
+  const p = V.phase, g = (c, w, A) => A * Math.exp(-((p - c) * (p - c)) / (2 * w * w));
+  let v = g(0.16, 0.025, 0.12) + g(0.30, 0.012, -0.12) + g(0.32, 0.012, 1.0) + g(0.345, 0.012, -0.25) + g(0.55, 0.045, 0.30);
+  v += 0.04 * Math.sin(TAU * t / 4.2) + gauss() * (W.moving ? 0.025 : 0.01);
+  ecg[ecgHead] = v; ecgHead = (ecgHead + 1) % ECG_N;
+}
+
+function secondTick(t) {
+  const s = Math.floor(t);
+  if (s === lastSec) return;
+  lastSec = s;
+  V.shownSys = Math.round(V.sys + gauss() * 1.0);
+  V.shownDia = Math.round(V.dia + gauss() * 0.8);
+  hist.push({ t, hr: V.shownHr, sys: V.shownSys, dia: V.shownDia });
+  if (hist.length > 200) hist.shift();
+  if (W.moving) { trail.push([W.x, W.y]); if (trail.length > 400) trail.shift(); }
+}
+
+function tick() {
+  ticks++; T = ticks * H;
+  walkerTick();
+  const a = accelAt(T);
+  acc[accHead] = a; accHead = (accHead + 1) % ACC_N;
+  const r = detect(a, T);
+  if (r === 'trigger') onTrigger(T, a);
+  else if (r === 'ignored') logEv('sensor', 'Free fall ' + Math.round(det.lastFF * 1000) + ' ms but no impact within 0.8 s. Ignored as harmless movement.');
+  emergencyTick(T, a);
+  vitalsTick(T);
+  secondTick(T);
+}
+
+/* ---------- Sound (Web Audio; starts after the viewer's first click) ---------- */
+let actx = null, soundOn = true, lastBeep = -1;
+function unlockAudio() {
+  try {
+    if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) actx = new AC(); }
+    if (actx && actx.state === 'suspended') actx.resume();
+  } catch (e) { actx = null; }
+}
+function tone(freq, start, dur, vol, type) {
+  if (!soundOn || !actx || actx.state !== 'running') return;
+  try {
+    const t0 = actx.currentTime + start;
+    const osc = actx.createOscillator(), lp = actx.createBiquadFilter(), g = actx.createGain();
+    osc.type = type || 'square'; osc.frequency.value = freq;
+    lp.type = 'lowpass'; lp.frequency.value = 3200;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+    g.gain.setValueAtTime(vol, t0 + Math.max(0.01, dur - 0.03));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(lp); lp.connect(g); g.connect(actx.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  } catch (e) { /* audio is optional */ }
+}
+const alarmBeep = idx => tone(idx % 2 ? 740 : 988, 0, 0.26, 0.14, 'square');
+const sosBlip = () => { tone(1320, 0, 0.07, 0.08, 'sine'); tone(1760, 0.1, 0.09, 0.08, 'sine'); };
+// The siren follows simulation time: one beep every 0.4 s while the suit buzzer is on.
+function audioFrame() {
+  if (E.active && E.buzzer) {
+    const idx = Math.floor((T - E.start) / 0.4);
+    if (idx !== lastBeep) { lastBeep = idx; alarmBeep(idx); }
+  } else lastBeep = -1;
+}
+document.addEventListener('click', unlockAudio, true);
+
+/* ---------- Controls ---------- */
+const sevValue = () => (document.querySelector('input[name="sev"]:checked') || { value: 'moderate' }).value;
+function fixDelay() { const v = $('gpsSel').value; return v === 'none' ? null : Number(v); }
+function refreshButtons() {
+  $('btnFall').disabled = !!script || E.active;
+  $('btnHop').disabled = !!script || E.active;
+}
+function startFall() {
+  if (script || E.active) return;
+  const p = PROFILES[sevValue()];
+  script = { t0: T, ff: p.ff / 1000, peak: p.peak };
+  W.moving = false;
+  V.profile = p; V.tf = T + p.ff / 1000;
+  fallMarks.push(V.tf);
+  refreshButtons();
+}
+function startHop() {
+  if (script || E.active) return;
+  script = { t0: T, ff: 0.12, peak: 0.30 };
+  refreshButtons();
+}
+$('btnFall').addEventListener('click', startFall);
+$('btnHop').addEventListener('click', startHop);
+$('btnReset').addEventListener('click', () => { init(); msgCache = ''; });
+$('btnSound').addEventListener('click', () => {
+  soundOn = !soundOn;
+  const b = $('btnSound'); b.textContent = soundOn ? 'Sound on' : 'Sound off'; b.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+  if (soundOn && actx) actx.resume().then(() => tone(988, 0, 0.18, 0.12, 'square')).catch(() => {});
+});
+$('log').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-id]');
+  if (b) { selMsg = Number(b.dataset.id); logDirty = true; msgCache = ''; }
+});
+$('btnCopy').addEventListener('click', () => {
+  const raw = shownRaw;
+  const done = () => { $('btnCopy').textContent = 'Copied'; setTimeout(() => { $('btnCopy').textContent = 'Copy'; }, 1500); };
+  const fallback = () => { const r = document.createRange(); r.selectNodeContents($('msgBox')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+  try { navigator.clipboard.writeText(raw).then(done, fallback); } catch (e) { fallback(); }
+});
+
+/* ---------- DOM updates ---------- */
+const cache = new Map();
+function setText(id, txt) { if (cache.get(id) !== txt) { cache.set(id, txt); $(id).textContent = txt; } }
+function setAttr(id, k, v) { const key = id + '@' + k; if (cache.get(key) !== v) { cache.set(key, v); $(id).setAttribute(k, v); } }
+
+const hrState = v => (v < 50 || v > 120) ? ['crit', v < 50 ? 'Low' : 'High'] : v > 100 ? ['warn', 'Elevated'] : ['ok', 'Normal'];
+const bpState = (s, d) => (s < 90 || d < 55) ? ['crit', 'Low'] : (s >= 160 || d >= 100) ? ['crit', 'High'] : (s >= 140 || d >= 90) ? ['warn', 'Elevated'] : ['ok', 'Normal'];
+
+let msgCache = '', shownRaw = '', logCache = -1;
+function renderMsg() {
+  const sel = selMsg == null ? null : events.find(e => e.id === selMsg && e.kind === 'sos');
+  let parts, mode, meta;
+  if (sel) {
+    parts = sel.parts; mode = 'sent';
+    meta = 'Alert #' + sel.alert + ' · sent ' + fmtT(sel.t) + ' · ' + sel.bytes + ' / ' + MAX_BYTES + ' bytes · ' + (sel.src === 'GPS' ? 'GPS position' : 'fallback beacon position');
+  } else {
+    parts = buildParts({ loc: FALLBACK, src: 'fallback', ff: '--', peak: '--', hr: V.shownHr, sys: V.shownSys, dia: V.shownDia, t: T, id: alertCount + 1 });
+    mode = 'preview';
+    meta = 'Preview, nothing sent yet · ' + rawOf(parts).length + ' / ' + MAX_BYTES + ' bytes · live heart rate and blood pressure';
+  }
+  const raw = rawOf(parts);
+  const sig = mode + '|' + raw + '|' + meta;
+  if (sig === msgCache) return;
+  msgCache = sig; shownRaw = raw;
+  const box = $('msgBox'); box.textContent = ''; box.dataset.mode = mode;
+  parts.forEach((p, i) => {
+    if (i) { const s = document.createElement('span'); s.className = 'sep'; s.textContent = ' | '; box.appendChild(s); }
+    const f = document.createElement('span'); f.className = 'f' + (p[2] ? ' ' + p[2] : '');
+    if (p[0]) { const l = document.createElement('i'); l.textContent = p[0] + ' '; f.appendChild(l); }
+    f.appendChild(document.createTextNode(p[1]));
+    box.appendChild(f);
+  });
+  $('msgMeta').textContent = meta;
+  const field = k => { const p = parts.find(x => x[0] === k); return p ? p[1] : '-'; };
+  $('dHr').textContent = field('HR:');
+  $('dBp').textContent = field('BP:');
+  $('dLoc').textContent = field('Loc:');
+}
+
+function renderLog() {
+  const ol = $('log'); ol.textContent = '';
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i], li = document.createElement('li');
+    li.className = 'ev'; li.dataset.k = e.kind;
+    const t = document.createElement('span'); t.className = 'ev-t'; t.textContent = fmtT(e.t);
+    const k = document.createElement('span'); k.className = 'ev-k'; k.textContent = KIND[e.kind];
+    li.append(t, k);
+    if (e.kind === 'sos') {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.id = e.id;
+      b.className = 'ev-x ev-btn' + (e.id === selMsg ? ' sel' : ''); b.textContent = e.text;
+      b.setAttribute('aria-pressed', e.id === selMsg ? 'true' : 'false');
+      li.appendChild(b);
+    } else { const x = document.createElement('span'); x.className = 'ev-x'; x.textContent = e.text; li.appendChild(x); }
+    ol.appendChild(li);
+  }
+}
+
+function updateUI() {
+  setText('met', fmtMET(T));
+  // vitals
+  setText('hrVal', String(V.shownHr));
+  const hs = hrState(V.shownHr); setText('hrChip', hs[1]); setAttr('hrChip', 'data-s', hs[0]);
+  setText('bpVal', V.shownSys + '/' + V.shownDia);
+  const bs = bpState(V.shownSys, V.shownDia); setText('bpChip', bs[1]); setAttr('bpChip', 'data-s', bs[0]);
+  // location
+  setText('fLat', latOf(W.y).toFixed(6));
+  setText('fLon', lonOf(W.x).toFixed(6));
+  setText('fXY', 'X ' + W.x.toFixed(1) + ' m, Y ' + W.y.toFixed(1) + ' m');
+  const dist = Math.hypot(W.x, W.y), brg = (Math.atan2(W.x, W.y) * 180 / Math.PI + 360) % 360;
+  setText('fDist', dist.toFixed(0) + ' m at ' + String(Math.round(brg)).padStart(3, '0') + '°');
+  setText('fRep', E.reported ? (E.reported === 'GPS' ? 'GPS position' : 'Fallback beacon (X 45.12, Y -12.88)') : 'Nothing sent yet');
+  const lc = E.active || E.finished ? ['crit', 'Fallen, ' + dist.toFixed(0) + ' m from habitat'] : ['ok', 'Walking on EVA'];
+  setText('locChip', lc[1]); setAttr('locChip', 'data-s', lc[0]);
+  // banner
+  const st = E.active ? 'alert' : E.finished ? 'ended' : 'nominal';
+  setAttr('banner', 'data-state', st);
+  if (st === 'alert') {
+    setText('bTitle', 'Fall detected, alert #' + E.id);
+    setText('bSub', 'Free fall ' + Math.round(E.ff) + ' ms, impact ' + E.peak.toFixed(2) + ' g. The SOS repeats every 5 s for 30 s.');
+  } else if (st === 'ended') {
+    setText('bTitle', 'SOS ended, alert #' + E.id);
+    setText('bSub', 'The 30 s protocol is finished and the GPS is off. Waiting for the crew to respond.');
+  } else {
+    setText('bTitle', 'Nominal');
+    setText('bSub', 'Watching suit motion. No fall detected.');
+  }
+  const el = T - E.start;
+  setText('pDet', det.state === 'idle' ? 'armed' : det.state === 'freefall' ? 'free fall...' : 'checking impact...');
+  setText('pBuz', E.active && E.buzzer ? 'on, ' + Math.max(0, Math.ceil(ALARM_ON - el)) + ' s left' : 'off');
+  setText('pGps', E.active ? (E.haveFix ? 'fix acquired' : 'searching...') : 'off');
+  let next = '-';
+  if (E.active) {
+    const at = E.sosSent ? E.lastSos + SOS_REPEAT : E.start + PEAK_WIN;
+    next = at > E.start + TOTAL ? 'none left' : 'in ' + Math.max(0, Math.ceil(at - T)) + ' s';
+  }
+  setText('pNext', next);
+  setText('accCap', (E.active && E.snap ? 'Captured at the fall: free fall, then the impact.' : 'Total acceleration, last 6 s.') + ' Dashed lines: free fall 0.08 g, impact 0.40 g.');
+  $('bar').style.width = E.active ? Math.min(100, el / TOTAL * 100).toFixed(1) + '%' : '0%';
+  // buttons title
+  $('btnFall').title = E.active ? 'An alert is running. Wait for it to finish or press Reset.' : '';
+  // message + log
+  renderMsg();
+  if (logDirty) { renderLog(); logDirty = false; }
+}
+
+/* ---------- Drawing ---------- */
+const C = {};
+function readColors() {
+  const s = getComputedStyle(document.documentElement);
+  ['ink', 'muted', 'line', 'surface', 'surface-2', 'accent', 'good', 'warn', 'crit', 'hr', 'sys', 'dia', 'map-bg', 'map-grid', 'crater', 'crater-edge', 'boulder']
+    .forEach(k => { C[k] = s.getPropertyValue('--' + k).trim(); });
+}
+function prep(cv) {
+  const r = cv.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+function ringAt(buf, head, n, i) { return buf[(head + i) % n]; }
+function orderedAcc() { const o = new Float32Array(ACC_N); for (let i = 0; i < ACC_N; i++) o[i] = acc[(accHead + i) % ACC_N]; return o; }
+
+function drawEcg() {
+  const { ctx, w, h } = prep($('cvEcg'));
+  ctx.lineWidth = 1; ctx.strokeStyle = C.line;
+  for (let s = 0; s <= 12; s++) { const x = Math.round(s / 12 * (w - 1)) + 0.5; ctx.globalAlpha = s % 2 ? 0.35 : 0.8; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+  ctx.globalAlpha = 0.6;
+  for (let k = 1; k < 4; k++) { const y = Math.round(h * k / 4) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  const Y = v => h * 0.9 - (v + 0.35) / 1.5 * h * 0.8;
+  ctx.beginPath();
+  for (let i = 0; i < ECG_N; i++) { const x = i / (ECG_N - 1) * w, y = Y(ringAt(ecg, ecgHead, ECG_N, i)); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.strokeStyle = C.hr; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
+  const ly = Y(ringAt(ecg, ecgHead, ECG_N, ECG_N - 1));
+  ctx.beginPath(); ctx.arc(w - 3, ly, 3, 0, TAU); ctx.fillStyle = C.hr; ctx.fill();
+}
+
+function drawTrend(cv, o) {
+  const { ctx, w, h } = prep(cv);
+  const pad = { l: 30, r: o.rpad, t: 12, b: 18 };
+  const x0 = pad.l, x1 = w - pad.r, y0 = pad.t, y1 = h - pad.b;
+  const tN = hist.length ? hist[hist.length - 1].t : 0, span = 90, tS = tN - span;
+  const X = t => x0 + (t - tS) / span * (x1 - x0);
+  const Y = v => y1 - (v - o.min) / (o.max - o.min) * (y1 - y0);
+  ctx.font = '10px ' + MONO; ctx.lineWidth = 1;
+  o.ticks.forEach(v => {
+    ctx.strokeStyle = C.line; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.moveTo(x0, Math.round(Y(v)) + 0.5); ctx.lineTo(x1, Math.round(Y(v)) + 0.5); ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.fillStyle = C.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(String(v), x0 - 6, Y(v));
+  });
+  ctx.textBaseline = 'alphabetic';
+  [[-90, '-90 s', 'left'], [-60, '-60', 'center'], [-30, '-30', 'center'], [0, 'now', 'right']].forEach(([d, l, al]) => {
+    ctx.fillStyle = C.muted; ctx.textAlign = al; ctx.fillText(l, X(tN + d), h - 4);
+  });
+  (o.refs || []).forEach(r => {
+    ctx.save(); ctx.setLineDash([4, 3]); ctx.strokeStyle = C.warn; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0, Y(r.y)); ctx.lineTo(x1, Y(r.y)); ctx.stroke(); ctx.restore();
+  });
+  fallMarks.forEach(t => {
+    if (t < tS || t > tN + 1) return;
+    const x = X(t);
+    ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = C.crit; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = C.crit; ctx.textAlign = x > x1 - 30 ? 'right' : 'left'; ctx.fillText('Fall', x + (x > x1 - 30 ? -3 : 3), y0 + 8);
+  });
+  o.series.forEach(s => {
+    const pts = hist.filter(p => p.t >= tS);
+    if (pts.length < 2) return;
+    ctx.beginPath();
+    pts.forEach((p, i) => { const x = X(p.t), y = Y(p[s.key]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.strokeStyle = C[s.color]; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+    if (o.fill) {
+      ctx.lineTo(X(pts[pts.length - 1].t), y1); ctx.lineTo(X(pts[0].t), y1); ctx.closePath();
+      ctx.globalAlpha = 0.12; ctx.fillStyle = C[s.color]; ctx.fill(); ctx.globalAlpha = 1;
+    }
+    const last = pts[pts.length - 1], ex = X(last.t), ey = Y(last[s.key]);
+    ctx.beginPath(); ctx.arc(ex, ey, 3.5, 0, TAU); ctx.fillStyle = C[s.color]; ctx.fill();
+    ctx.fillStyle = C[s.color]; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText((s.label ? s.label + ' ' : '') + last[s.key], ex + 8, ey); ctx.textBaseline = 'alphabetic';
+  });
+}
+
+function drawAccel() {
+  const { ctx, w, h } = prep($('cvAcc'));
+  const snap = E.active && E.snap ? E.snap : null;
+  const val = i => snap ? snap[i] : ringAt(acc, accHead, ACC_N, i);
+  let mx = 0.7; for (let i = 0; i < ACC_N; i += 3) if (val(i) > mx) mx = val(i);
+  const top = mx * 1.08, Y = v => h - 2 - v / top * (h - 6);
+  ctx.save(); ctx.setLineDash([4, 3]); ctx.lineWidth = 1;
+  [[FF_THR, C.good], [IMP_THR, C.crit]].forEach(([v, c]) => { ctx.strokeStyle = c; ctx.beginPath(); ctx.moveTo(0, Y(v)); ctx.lineTo(w, Y(v)); ctx.stroke(); });
+  ctx.restore();
+  ctx.beginPath();
+  for (let i = 0; i < ACC_N; i++) { const x = i / (ACC_N - 1) * w, y = Y(val(i)); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 1.3; ctx.lineJoin = 'round'; ctx.stroke();
+}
+
+function pill(ctx, text, x, y, color, w) {
+  ctx.font = '500 11px ' + MONO;
+  const tw = ctx.measureText(text).width, pw = tw + 12, ph = 20;
+  const px = clamp(x, 4, w - pw - 4), py = y;
+  ctx.fillStyle = C.surface; ctx.globalAlpha = 0.92; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(px, py, pw, ph, 5) : ctx.rect(px, py, pw, ph); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = C.ink; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(text, px + 6, py + ph / 2 + 0.5); ctx.textBaseline = 'alphabetic';
+}
+
+function drawMap(now) {
+  const { ctx, w, h } = prep($('cvMap'));
+  const sc = Math.min(w / 200, h / 150), cx = w / 2, cy = h / 2;
+  const sx = x => cx + x * sc, sy = y => cy - y * sc;
+  ctx.fillStyle = C['map-bg']; ctx.fillRect(0, 0, w, h);
+  ctx.lineWidth = 1; ctx.strokeStyle = C['map-grid'];
+  ctx.font = '10px ' + MONO; ctx.fillStyle = C.muted;
+  for (let g = -100; g <= 100; g += 25) { const x = Math.round(sx(g)) + 0.5; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+  for (let g = -75; g <= 75; g += 25) { const y = Math.round(sy(g)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+  craters.forEach(c => {
+    ctx.beginPath(); ctx.arc(sx(c.x), sy(c.y), c.r * sc, 0, TAU); ctx.fillStyle = C.crater; ctx.fill();
+    ctx.strokeStyle = C['crater-edge']; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(sx(c.x), sy(c.y), c.r * sc * 0.8, Math.PI * 0.7, Math.PI * 1.7); ctx.lineWidth = Math.max(1.5, c.r * sc * 0.12); ctx.stroke();
+  });
+  ctx.fillStyle = C.boulder; boulders.forEach(b => { ctx.beginPath(); ctx.arc(sx(b.x), sy(b.y), b.s, 0, TAU); ctx.fill(); });
+  ctx.font = '10px ' + MONO; ctx.fillStyle = C.muted;
+  ctx.textAlign = 'center'; for (let g = -50; g <= 50; g += 50) ctx.fillText(g + ' m', sx(g), h - 4);
+  ctx.textAlign = 'left'; for (let g = -50; g <= 50; g += 50) if (g) ctx.fillText(String(g), 4, sy(g) - 3);
+  if (trail.length > 1) {
+    ctx.beginPath(); trail.forEach((p, i) => i ? ctx.lineTo(sx(p[0]), sy(p[1])) : ctx.moveTo(sx(p[0]), sy(p[1])));
+    ctx.lineTo(sx(W.x), sy(W.y)); ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.globalAlpha = 0.75; ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  // fallback beacon: where the first SOS points before a GPS fix
+  if (E.active && !E.haveFix) {
+    const bx = sx(FALLBACK_XY.x), by = sy(FALLBACK_XY.y);
+    ctx.save(); ctx.setLineDash([4, 3]); ctx.strokeStyle = C.warn; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(bx, by, 10, 0, TAU); ctx.stroke(); ctx.restore();
+    ctx.beginPath(); ctx.arc(bx, by, 2, 0, TAU); ctx.fillStyle = C.warn; ctx.fill();
+    pill(ctx, 'Beacon (fallback)', bx + 14, by - 10, C.warn, w);
+  }
+  // habitat
+  const hx = sx(0), hy = sy(0);
+  ctx.fillStyle = C.surface; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.rect(hx - 8, hy - 8, 16, 16); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = C.ink; ctx.font = '500 10px ' + MONO; ctx.textAlign = 'center'; ctx.fillText('HAB', hx, hy + 22);
+  // astronaut
+  const ax = sx(W.x), ay = sy(W.y), fallen = E.active || E.finished, col = fallen ? C.crit : C.accent;
+  if (E.active) {
+    const rings = REDUCE ? [0.4] : [(now / 1000 * 0.9) % 1, ((now / 1000 * 0.9) + 0.5) % 1];
+    rings.forEach(p => { ctx.beginPath(); ctx.arc(ax, ay, 9 + p * 26, 0, TAU); ctx.strokeStyle = C.crit; ctx.globalAlpha = 0.65 * (1 - p); ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1; });
+  }
+  ctx.beginPath(); ctx.arc(ax, ay, 7, 0, TAU); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.surface; ctx.stroke();
+  if (!fallen) {
+    ctx.save(); ctx.translate(ax, ay); ctx.rotate(W.hd); ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(4.5, -8); ctx.lineTo(-4.5, -8); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); ctx.restore();
+  }
+  pill(ctx, fallen ? ASTRO.id + ' FALLEN' : ASTRO.id, ax + 12, ay + 8, col, w);
+  // north arrow and scale bar
+  ctx.fillStyle = C.ink; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.font = '500 10px ' + MONO; ctx.textAlign = 'center';
+  ctx.beginPath(); ctx.moveTo(w - 20, 34); ctx.lineTo(w - 20, 12); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w - 20, 8); ctx.lineTo(w - 25, 16); ctx.lineTo(w - 15, 16); ctx.closePath(); ctx.fill(); ctx.fillText('N', w - 20, 46);
+  const sbx = w - 14 - 25 * sc, sby = h - 20;
+  ctx.beginPath(); ctx.moveTo(sbx, sby); ctx.lineTo(sbx + 25 * sc, sby); ctx.moveTo(sbx, sby - 4); ctx.lineTo(sbx, sby + 4); ctx.moveTo(sbx + 25 * sc, sby - 4); ctx.lineTo(sbx + 25 * sc, sby + 4); ctx.stroke();
+  ctx.fillText('25 m', sbx + 12.5 * sc, sby - 7);
+}
+
+function render(now) {
+  drawEcg();
+  drawTrend($('cvHr'), { min: 40, max: 170, ticks: [60, 100, 140], rpad: 40, fill: true, series: [{ key: 'hr', color: 'hr' }] });
+  drawTrend($('cvBp'), { min: 30, max: 170, ticks: [60, 90, 120, 150], rpad: 58, refs: [{ y: 90 }], series: [{ key: 'sys', color: 'sys', label: 'SYS' }, { key: 'dia', color: 'dia', label: 'DIA' }] });
+  drawAccel();
+  drawMap(now);
+}
+
+/* ---------- Main loop ---------- */
+let last = performance.now(), accT = 0, frameNo = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  accT += dt;
+  while (accT >= H) { tick(); accT -= H; }
+  if (frameNo++ % 30 === 0) readColors();
+  updateUI();
+  audioFrame();
+  render(now);
+  requestAnimationFrame(frame);
+}
+
+makeTerrain();
+readColors();
+init();
+if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener && matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
