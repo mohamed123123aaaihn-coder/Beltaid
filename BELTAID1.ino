@@ -1,0 +1,161 @@
+#include <Wire.h>
+#include <MPU6050.h>
+#include <HardwareSerial.h>
+#include <TinyGPS++.h>
+
+// ================= إعدادات النظام والجاذبية =================
+// اختر معامل الجاذبية: 1.0 للأرض | 0.16 للقمر | 0.38 للمريخ
+#define GRAVITY_FACTOR 0.16 
+
+// حساب عتبات السقوط ديناميكياً بناءً على جاذبية الكوكب
+const float FREE_FALL_THRESHOLD = 0.5 * GRAVITY_FACTOR; // عتبة انعدام الوزن
+const float IMPACT_THRESHOLD = 2.5 * GRAVITY_FACTOR;    // عتبة صدمة الارتطام
+const unsigned long FREE_FALL_MIN_TIME = 60;            // أقل مدة للهبوط الحر (بالملي ثانية)
+const unsigned long IMPACT_WINDOW = 800;                // أقصى وقت مسموح لحدوث الارتطام بعد الهبوط الحر (بالملي ثانية)
+
+// ================= تعريف الأطراف (Pins) =================
+#define AIRBAG_RELAY_PIN 25    // طرف تفعيل صمام الوسادة الهوائية
+#define GPS_POWER_PIN    26    // طرف للتحكم في تشغيل/إطفاء الـ GPS لتوفير الطاقة
+#define BUZZER_PIN       27    // إنذار صوتي محلي داخل البدلة
+#define MPU_INT_PIN      33    // طرف المقاطعة (Interrupt) لإيقاظ المعالج من وضع النوم
+
+// ================= تعريف الكائنات =================
+MPU6050 mpu;
+TinyGPSPlus gps;
+HardwareSerial GPS_Serial(1);   // UART1 للـ GPS / نظام تحديد الموقع المحلي
+HardwareSerial Telemetry_Serial(2); // UART2 لوحدة الإرسال (LoRa / RF / GSM)
+
+// متغيرات الخوارزمية
+bool freeFallDetected = false;
+unsigned long freeFallStartTime = 0;
+unsigned long freeFallEndTime = 0;
+
+void setup() {
+  Serial.begin(115200);
+  
+  // تهيئة أطراف التحكم
+  pinMode(AIRBAG_RELAY_PIN, OUTPUT);
+  digitalWrite(AIRBAG_RELAY_PIN, LOW); // التأكد من أن الوسادة مغلقة في البداية
+  
+  pinMode(GPS_POWER_PIN, OUTPUT);
+  digitalWrite(GPS_POWER_PIN, LOW);    // إطفاء وحدة الموقع في البداية لتوفير الطاقة
+  
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(MPU_INT_PIN, INPUT);
+
+  // تهيئة مستشعر الحركة MPU6050
+  Wire.begin();
+  mpu.initialize();
+  if (!mpu.testConnection()) {
+    Serial.println("MPU6050 connection failed!");
+    while (1);
+  }
+
+  // إعداد المستشعر لإرسال إشارة إيقاظ (Interrupt) عند حدوث حركة مفاجئة
+  mpu.setIntFreefallEnabled(true);
+  mpu.setFreefallDetectionThreshold(20); // حساسية الهبوط الحر
+  mpu.setFreefallDetectionDuration(5);
+
+  // تهيئة منافذ الاتصال
+  GPS_Serial.begin(9600, SERIAL_8N1, 16, 17);       // RX=16, TX=17
+  Telemetry_Serial.begin(9600, SERIAL_8N1, 4, 2);   // RX=4, TX=2 (لإرسال الاستغاثة)
+
+  Serial.println("BELTAID Space System Initialized...");
+}
+
+void loop() {
+  // 1. قراءة التسارع من المحاور الثلاثة
+  int16_t ax, ay, az;
+  mpu.getAcceleration(&ax, &ay, &az);
+
+  // تحويل القراءات الخام إلى وحدة الجاذبية (g)
+  float accelX = ax / 16384.0;
+  float accelY = ay / 16384.0;
+  float accelZ = az / 16384.0;
+
+  // حساب التسارع الكلي (Total Acceleration Vector)
+  float totalAccel = sqrt(accelX * accelX + accelY * accelY + accelZ * accelZ);
+
+  unsigned long currentTime = millis();
+
+  // 2. المرحلة الأولى: رصد الهبوط الحر (Free-Fall Phase)
+  if (totalAccel < FREE_FALL_THRESHOLD) {
+    if (!freeFallDetected) {
+      freeFallStartTime = currentTime;
+      freeFallDetected = true;
+    }
+  } else {
+    // التحقق من أن الهبوط الحر استمر للمدة الكافية
+    if (freeFallDetected) {
+      if ((currentTime - freeFallStartTime) >= FREE_FALL_MIN_TIME) {
+        freeFallEndTime = currentTime;
+      } else {
+        freeFallDetected = false; // تجاهل الحركة إذا كانت قصيرة جداً (حركة عادية)
+      }
+    }
+  }
+
+  // 3. المرحلة الثانية: رصد صدمة الارتطام (Impact Phase)
+  if (freeFallDetected && (currentTime - freeFallEndTime) <= IMPACT_WINDOW) {
+    if (totalAccel > IMPACT_THRESHOLD) {
+      // تم تأكيد السقوط الخطر!
+      triggerEmergencyProtocol();
+      freeFallDetected = false; // إعادة ضبط الحالة
+    }
+  } else if (freeFallDetected && (currentTime - freeFallEndTime) > IMPACT_WINDOW) {
+    // انتهاء النافذة الزمنية دون حدوث ارتطام (حركة آمنة)
+    freeFallDetected = false;
+  }
+
+  // 4. وضع توفير الطاقة الذكي (Light Sleep) أثناء الثبات
+  enterPowerSavingMode();
+}
+
+// ================= بروتوكول الطوارئ =================
+void triggerEmergencyProtocol() {
+  Serial.println("CRITICAL FALL DETECTED! Executing Emergency Protocol...");
+
+  // أ. تفعيل الوسادة الهوائية فوراً لحماية البدلة ورائد الفضاء
+  digitalWrite(AIRBAG_RELAY_PIN, HIGH);
+  digitalWrite(BUZZER_PIN, HIGH);
+
+  // ب. تشغيل وحدة تحديد الموقع واستخراج الإحداثيات
+  digitalWrite(GPS_POWER_PIN, HIGH);
+  delay(2000); // انتظار استقرار الإشارة
+
+  String locationData = "Local Beacon Coordinates: X=45.12, Y=-12.88"; // إحداثيات افتراضية في حال عدم توفر GPS
+  unsigned long startWait = millis();
+  while (millis() - startWait < 3000) {
+    while (GPS_Serial.available() > 0) {
+      if (gps.encode(GPS_Serial.read()) && gps.location.isValid()) {
+        locationData = "Lat: " + String(gps.location.lat(), 6) + ", Lon: " + String(gps.location.lng(), 6);
+      }
+    }
+  }
+
+  // ج. إرسال إشارة الاستغاثة لمركز التحكم والطاقم (Telemetry)
+  sendDistressSignal(locationData);
+
+  // إبقاء صمام الوسادة مفتوحاً لفترة كافية ثم إغلاقه لحفظ البطارية
+  delay(3000);
+  digitalWrite(AIRBAG_RELAY_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
+  digitalWrite(GPS_POWER_PIN, LOW); // إعادة إطفاء وحدة الموقع
+}
+
+// ================= دالة إرسال الاستغاثة =================
+void sendDistressSignal(String coords) {
+  String alertMessage = "SOS! ASTRONAUT FALL DETECTED. " + coords;
+  
+  // إرسال عبر وحدة الاتصال (LoRa / RF / GSM)
+  Telemetry_Serial.println(alertMessage);
+  Serial.println("Distress Signal Sent: " + alertMessage);
+}
+
+// ================= دالة توفير الطاقة =================
+void enterPowerSavingMode() {
+  // وضع المعالج في حالة نوم خفيف (Light Sleep) لمدة قصيرة جداً (10 ملي ثانية) بين كل قراءة
+  // لتقليل استهلاك المعالج مع الحفاظ على سرعة الاستجابة الفورية
+  esp_sleep_enable_timer_wakeup(10000); // 10,000 ميكروثانية = 10 ملي ثانية
+  esp_light_sleep_start();
+}
